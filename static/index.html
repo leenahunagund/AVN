@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>YOLO Real-time Detection</title>
+    <style>
+        video, canvas {
+            display: block;
+            margin: 20px auto;
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+    <h2>YOLO Real-time Detection</h2>
+    <video id="video" autoplay></video>
+    <canvas id="canvas"></canvas>
+    <script>
+        const socket = io("http://127.0.0.1:5000"); // Connect to Flask backend
+        const video = document.getElementById("video");
+        const canvas = document.getElementById("canvas");
+        const ctx = canvas.getContext("2d");
+
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(stream => {
+                video.srcObject = stream;
+            })
+            .catch(error => {
+                console.error("Error accessing webcam: ", error);
+                alert("Error accessing webcam. Please check your camera permissions.");
+            });
+
+        function sendFrame() {
+            const width = 416,
+            height = 416;
+            canvas.width = width;
+            canvas.height = height;
+            ctx.drawImage(video, 0, 0, width, height);
+            const frameData = canvas.toDataURL("image/jpeg").split(",")[1];
+
+            socket.emit("video_frame", { image: frameData });
+        }
+
+        socket.on("processed_frame", function(data) {
+            const img = new Image();
+            img.src = "data:image/jpeg;base64," + data;
+            img.onload = function() {
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            };
+        });
+
+        setInterval(sendFrame, 100);
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+</body>
+</html>

@@ -1,0 +1,3 @@
+title: YOLOv4 + Lane Detection API
+sdk: docker
+hardware: gpu

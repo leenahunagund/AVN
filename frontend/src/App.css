@@ -1,38 +1,124 @@
-.App {
-  text-align: center;
+/* Global reset & background ------------------------------------------------- */
+html,
+body {
+  margin: 0;
+  height: 100%;
+  font-family: 'Times New Roman', Times, serif;
+  background: url("https://media.istockphoto.com/id/2155109948/video/hong-kong-a-global-hub-for-cutting-edge-ai-technology-harnesses-the-power-of-innovation-to.avif?s=640x640&k=20&c=BOOcS6NV7TxSGMWxyuQef5yCWlZnIWJCKOGSePNRKts=")
+    center/cover no-repeat fixed;
+}
+body, html {
+  font-family: 'Times New Roman', Times, serif !important;
 }
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
-
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
+.container {
   display: flex;
-  flex-direction: column;
-  align-items: center;
   justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
+  align-items: center;
+  min-height: 100vh;
+  padding: 2rem;
+  backdrop-filter: blur(3px);
 }
 
-.App-link {
-  color: #61dafb;
+
+.card {
+  background: rgba(40, 44, 52, 0.9);
+  color: #ffffff;
+  padding: 2rem;
+  width: 100%;
+  max-width: 700px;
+  text-align: center;
+  border-radius: 16px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+
+.title {
+  font-weight: bold;
+  margin-bottom: 1rem;
+}
+
+
+.input {
+  display: block;
+  margin: 1.5rem auto;
+  color: #ffffff;
+}
+
+
+.upload-button {
+  background-color: #1976d2 !important;
+  color: #ffffff !important;
+  font-weight: 600;
+  margin-top: 10px;
+  margin-right: 10px !important;
+}
+
+.download-button {
+  background-color: #2e7d32 !important;
+  color: #ffffff !important;
+  font-weight: 600;
+  margin-top: 10px;
+  margin-right: 10px !important;
+}
+
+.real-time-button {
+  background-color: #f50057 !important;
+  color: #ffffff !important;
+  font-weight: 600;
+  margin-top: 30px;
+  margin-left:10px !important;
+}
+
+
+.mt-10 {
+  margin-top: 10px;
+}
+
+
+.result-container {
+  margin-top: 20px;
+}
+
+
+.video-container {
+  position: relative;
+  margin-top: 20px;
+}
+
+.video-preview {
+  width: 100%;
+  height: auto;
+  border-radius: 10px;
+  z-index: 1;
+}
+
+.video-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+}
+
+
+button {
+  margin-right: 10px 0;
+}
+
+.input {
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 14px;
+  padding: 5px 12px;
+  border: 1.5px solid #3b82f6;
+  border-radius: 4px;
+  background-color: #e0f0ff;
+  color: #1e40af;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.input:hover {
+  background-color: #c0d8ff;
 }

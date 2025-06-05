@@ -2,7 +2,9 @@ import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import DownloadIcon from "@mui/icons-material/Download";
 import LiveTvIcon from "@mui/icons-material/LiveTv";
 import { Button, Card, CardContent, CircularProgress, Typography } from "@mui/material";
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import io from "socket.io-client";
+import "./App.css";
 
 function App() {
   const [file, setFile] = useState(null);
@@ -10,52 +12,41 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [isRealTime, setIsRealTime] = useState(false);
   const videoRef = useRef(null);
-  const canvasRef = useRef(null);
+  const canvasRef = useRef(null); // display annotated output
+  const offscreenCanvasRef = useRef(null); // used only to capture and send
   const socket = useRef(null);
   const streamRef = useRef(null);
 
-  const handleFileChange = (e) => {
-    setFile(e.target.files[0]);
-  };
+  const handleFileChange = (e) => setFile(e.target.files[0]);
 
   const handleUpload = async () => {
-    if (!file) {
-      alert("Please select a file first!");
-      return;
-    }
-
+    if (!file) return alert("Please select a file first!");
     const formData = new FormData();
     formData.append("video", file);
-
     setLoading(true);
     setDownloadUrl("");
 
     try {
-      const response = await fetch("http://localhost:5000/upload", {
+      const res = await fetch("http://localhost:5000/upload", {
         method: "POST",
         body: formData,
       });
-
-      const result = await response.json();
+      const result = await res.json();
       if (result.download_url) {
         setDownloadUrl(`http://localhost:5000${result.download_url}`);
       }
-    } catch (error) {
-      console.error("Error uploading file:", error);
+    } catch (err) {
+      console.error("Error uploading file:", err);
     } finally {
       setLoading(false);
     }
   };
 
   const handleRealTimeDetection = () => {
-    if (!isRealTime) {
-      setIsRealTime(true); // triggers useEffect
-    } else {
-      stopRealTimeDetection();
-    }
+    if (isRealTime) stopRealTimeDetection();
+    else setIsRealTime(true);
   };
 
-  // 💡 Start detection after videoRef is available
   useEffect(() => {
     if (!isRealTime || !videoRef.current) return;
 
@@ -65,23 +56,21 @@ function App() {
         videoRef.current.srcObject = stream;
         streamRef.current = stream;
 
-        // Setup WebSocket
-        socket.current = new WebSocket("ws://localhost:5000");
-        socket.current.onopen = () => {
-          console.log("WebSocket connected");
-        };
+        socket.current = io("http://localhost:5000");
 
-        socket.current.onmessage = (event) => {
-          const processedFrame = event.data;
-          const image = new Image();
-          image.src = `data:image/jpeg;base64,${processedFrame}`;
-          image.onload = () => {
+        socket.current.on("processed_frame", (data) => {
             const canvas = canvasRef.current;
             const ctx = canvas.getContext("2d");
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+          const img = new Image();
+          img.src = `data:image/jpeg;base64,${data}`;
+
+          img.onload = () => {
+            canvas.width = img.width;
+            canvas.height = img.height;
+            //ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, img.width, img.height);
           };
-        };
+        });
       } catch (err) {
         alert("Could not access the camera.");
         console.error(err);
@@ -90,85 +79,68 @@ function App() {
     };
 
     setupCameraAndSocket();
-
     return () => stopRealTimeDetection();
   }, [isRealTime]);
 
   const stopRealTimeDetection = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-    if (socket.current) {
-      socket.current.close();
-    }
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    if (videoRef.current) videoRef.current.srcObject = null;
+    socket.current?.close();
     setIsRealTime(false);
   };
 
   const sendFrameToServer = () => {
-    if (!videoRef.current || !canvasRef.current) return;
+    if (!videoRef.current || !offscreenCanvasRef.current) return;
 
-    const canvas = canvasRef.current;
+    const canvas = offscreenCanvasRef.current;
     const ctx = canvas.getContext("2d");
-    const width = videoRef.current.videoWidth;
-    const height = videoRef.current.videoHeight;
-    const imageData = canvas.toDataURL("image/jpeg");
+    const { videoWidth: w, videoHeight: h } = videoRef.current;
+    if (!w || !h) return;
 
-    if (width === 0 || height === 0) return;
+    canvas.width = w;
+    canvas.height = h;
+    ctx.drawImage(videoRef.current, 0, 0, w, h);
 
-    canvas.width = width;
-    canvas.height = height;
-
-    ctx.drawImage(videoRef.current, 0, 0, width, height);
-    const frameData = canvas.toDataURL("image/jpeg").split(",")[1];
-
-    if (socket.current && socket.current.readyState === WebSocket.OPEN) {
-      socket.current.emit("video_frame", { image: imageData });
+    const img64 = canvas.toDataURL("image/jpeg").split(",")[1];
+    if (socket.current && socket.current.connected) {
+      socket.current.emit("video_frame", { image: img64 });
     }
   };
 
   useEffect(() => {
-    if (isRealTime) {
-      const interval = setInterval(sendFrameToServer, 100);
-      return () => clearInterval(interval);
-    }
+    if (!isRealTime) return;
+    const id = setInterval(sendFrameToServer, 100);
+    return () => clearInterval(id);
   }, [isRealTime]);
 
   return (
-    <div style={styles.container}>
-      <Card style={styles.card}>
+    <div className="container">
+      <Card className="card">
         <CardContent>
-          <Typography variant="h4" gutterBottom style={{ fontWeight: "bold" }}>
-            YOLO Object & Lane Detection
+          <Typography variant="h4" gutterBottom className="title">
+            YOLO Object &amp; Lane Detection
           </Typography>
 
           <Typography variant="body1" color="textSecondary">
-            Upload a video or use your camera for real-time lane and object detection.
+            Upload a video or use your camera for real‑time lane and object detection.
           </Typography>
 
-          <input
-            type="file"
-            accept="video/*"
-            onChange={handleFileChange}
-            style={styles.input}
-          />
+          <input type="file" accept="video/*" onChange={handleFileChange} className="input" />
 
           <Button
             variant="contained"
             startIcon={<CloudUploadIcon />}
             onClick={handleUpload}
-            style={styles.uploadButton}
+            className="upload-button"
             disabled={loading}
           >
             {loading ? "Processing..." : "Upload & Process"}
           </Button>
 
-          {loading && <CircularProgress style={{ marginTop: 10 }} />}
+          {loading && <CircularProgress className="mt-10" />}
 
           {downloadUrl && (
-            <div style={{ marginTop: 20 }}>
+            <div className="result-container">
               <Typography variant="h6" color="success.main">
                 ✅ Processing Complete!
               </Typography>
@@ -179,7 +151,7 @@ function App() {
                 startIcon={<DownloadIcon />}
                 href={downloadUrl}
                 download
-                style={styles.downloadButton}
+                className="download-button"
               >
                 Download Annotated Video
               </Button>
@@ -190,15 +162,18 @@ function App() {
             variant="contained"
             startIcon={<LiveTvIcon />}
             onClick={handleRealTimeDetection}
-            style={styles.realTimeButton}
+            className="real-time-button"
           >
-            {isRealTime ? "Stop Real-time Detection" : "Detect Real-time"}
+            {isRealTime ? "Stop Real‑time Detection" : "Detect Real‑time"}
           </Button>
 
           {isRealTime && (
-            <div style={{ marginTop: 20, position: "relative" }}>
-              <video ref={videoRef} autoPlay muted style={styles.video}></video>
-              <canvas ref={canvasRef} style={styles.canvas}></canvas>
+            <div className="video-container">
+              <video ref={videoRef} autoPlay muted className="video-preview" />
+              {/* Hidden canvas for capturing raw webcam frames */}
+              <canvas ref={offscreenCanvasRef} style={{ display: "none" }} />
+              {/* Visible canvas for showing processed annotated output */}
+              <canvas ref={canvasRef} className="video-canvas" />
             </div>
           )}
         </CardContent>
@@ -206,57 +181,5 @@ function App() {
     </div>
   );
 }
-
-// Styles
-const styles = {
-  container: {
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    height: "100vh",
-    backgroundColor: "#f4f4f4",
-  },
-  card: {
-    padding: "30px",
-    width: "500px",
-    textAlign: "center",
-    boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.1)",
-    backgroundColor: "#ffffff",
-    borderRadius: "10px",
-  },
-  input: {
-    display: "block",
-    margin: "20px auto",
-  },
-  uploadButton: {
-    backgroundColor: "#1976D2",
-    color: "#ffffff",
-    fontWeight: "bold",
-    marginTop: 10,
-  },
-  downloadButton: {
-    marginTop: 10,
-    fontWeight: "bold",
-  },
-  realTimeButton: {
-    backgroundColor: "#28a745",
-    color: "#ffffff",
-    fontWeight: "bold",
-    marginTop: 20,
-  },
-  video: {
-    width: "100%",
-    height: "auto",
-    borderRadius: "10px",
-  },
-  canvas: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    width: "100%",
-    height: "100%",
-    pointerEvents: "none",
-  },
-};
 
 export default App;

@@ -197,6 +197,7 @@ def index():
 
 @socketio.on("video_frame")
 def handle_video_frame(data):
+    print("[INFO] Frame received")
     image_data = data.get("image")
     if image_data:
         try:
